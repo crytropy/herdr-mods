@@ -166,18 +166,27 @@ export default class Shot extends View {
   key(e, cx) {
     if (e.key === "escape") return this.close();
     if (e.key === "backspace" || (e.key === "z" && e.modifiers.control)) this.marks.pop();
-    else if (e.key === "enter") this.send(cx);
+    else if (e.key === "c" && e.modifiers.control) this.copy(cx);
     else return;
     cx.stop_propagation();
     cx.notify();
   }
 
-  send(cx) {
+  // With marks: only the marks count, saved with a screenshot. Without: the block under the pointer, no screenshot.
+  copy(cx) {
     if (this.busy) return;
-    if (this.marks.length === 0) {
-      this.error = "還沒有標記。先點一下或拖曳框選。";
+    if (this.marks.length > 0) return this.send(cx);
+    const p = this.pointer;
+    const r = p && this.hitAt(p.x, p.y);
+    if (!r) {
+      this.error = "滑鼠先指向一個區塊。";
       return;
     }
+    cx.write_to_clipboard(`c-shot 區塊：${label(r)}｜${r.path}｜位置 ${r.x},${r.y}，${r.w}×${r.h}（layout ${shared("layout") ?? "?"}）`);
+    this.close();
+  }
+
+  send(cx) {
     this.busy = true;
     this.error = null;
     cx.notify();
@@ -297,7 +306,7 @@ export default class Shot extends View {
           .child("點一下：標點")
           .child("拖曳：框選")
           .child("Backspace：復原")
-          .child("Enter：送出")
+          .child(this.marks.length > 0 ? "Ctrl+C：複製標記並截圖" : "Ctrl+C：複製指向的區塊")
           .child("Esc：取消")
           .when(Boolean(this.error), (el) => el.child(div().text_color(t.ansi1).child(this.error))))));
   }
