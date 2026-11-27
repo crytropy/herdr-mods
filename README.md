@@ -85,6 +85,8 @@ powershell -ExecutionPolicy Bypass -File mods\c-pr\install.ps1
 
 裝好後，herdr 會自動把面板放到右側。要改顯示範圍，再跑一次 `install.ps1` 就好。
 
+安裝時 herdr 要開著。如果現在用的是 herdr 內建的版面（例如 `main`），安裝程式會先複製一份叫 `c-main` 的版面並切過去，面板就放在 `c-main` 裡。因為 herdr 每次重開都會把內建版面還原，面板放在內建版面裡會不見。
+
 **手動安裝：**
 
 1. 把 `mods/c-pr/` 裡的 `main.js`、`mod.json`、`jsconfig.json` 複製到 `~/.config/herdr-app/mods/c-pr/`。
@@ -95,6 +97,13 @@ powershell -ExecutionPolicy Bypass -File mods\c-pr\install.ps1
    ```
 
    `scope` 是 GitHub 搜尋條件。沒有這個檔、或 `scope` 是空的，就顯示所有 repo 的 PR。
+3. 這一步要在第 1 步之前做：先換到自己的版面，免得面板放進內建版面、重開後不見：
+
+   ```sh
+   herdr-app do layout.clone --name main --as c-main
+   ```
+
+   已經有 `c-main` 的話，改用 `herdr-app do layout.switch --name c-main`。c-issue 手動安裝也一樣。
 
 改 `config.json` 不用重開 herdr，下一次更新就會套用。
 
@@ -109,6 +118,8 @@ powershell -ExecutionPolicy Bypass -File mods\c-issue\install.ps1
 安裝程式會問三個 repo，格式是 `owner/name`，例如 `cli/cli`。不滿三個就直接按 Enter 略過。
 
 要換 repo，再跑一次 `install.ps1` 就好。
+
+和 c-pr 一樣，安裝時 herdr 要開著，面板會放在 `c-main` 版面裡。
 
 **手動安裝：**
 

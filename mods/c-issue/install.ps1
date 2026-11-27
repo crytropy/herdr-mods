@@ -42,6 +42,41 @@ if ($repos.Count -eq 0) {
     exit 1
 }
 
+# herdr 每次啟動都會把自己的版面（main 等）還原成原廠版。
+# 新 mod 第一次出現時會被放進目前的版面；如果那是 herdr 的版面，
+# 下次重開面板就不見了。所以先換到使用者自己的版面 c-main。
+function Use-OwnLayout {
+    $own = 'c-main'
+    $layout = 'main'
+    try {
+        $shared = Get-Content -Raw -Encoding UTF8 (Join-Path $appHome 'shared.json') | ConvertFrom-Json
+        if ($shared.layout) { $layout = [string]$shared.layout }
+    } catch {}
+    $shipped = $false
+    try {
+        $installed = Get-Content -Raw -Encoding UTF8 (Join-Path $appHome 'installed.json') | ConvertFrom-Json
+        $shipped = $null -ne $installed.PSObject.Properties["layout:$layout"]
+    } catch {}
+    if (-not $shipped) { return }
+
+    $hint = "目前的版面是 herdr 內建的 $layout，重開 herdr 後面板會不見。請先打開 herdr，再跑一次 install.ps1。"
+    if (-not (Get-Command herdr-app -ErrorAction SilentlyContinue)) {
+        Write-Host $hint -ForegroundColor Yellow
+        return
+    }
+    if (Test-Path (Join-Path $appHome "layouts\$own.json")) {
+        $out = herdr-app do layout.switch --name $own | Out-String
+    } else {
+        $out = herdr-app do layout.clone --name $layout --as $own | Out-String
+    }
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host $hint -ForegroundColor Yellow
+        return
+    }
+    Write-Host "已切換到你自己的版面 $own（herdr 內建的 $layout 每次重開都會還原）。"
+}
+Use-OwnLayout
+
 New-Item -ItemType Directory -Force $target | Out-Null
 foreach ($file in 'main.js', 'mod.json', 'jsconfig.json') {
     Copy-Item -Force (Join-Path $PSScriptRoot $file) (Join-Path $target $file)
