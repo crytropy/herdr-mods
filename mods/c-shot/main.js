@@ -216,7 +216,7 @@ export default class Shot extends View {
   }
 
   badge(n, x, y) {
-    return div().absolute().left(x).top(y).px(5).rounded(4).bg(`${color(n)}cc`)
+    return div().absolute().left(x).top(y).px(5).rounded(4).whitespace_nowrap().bg(`${color(n)}cc`)
       .text_size(11).font_semibold().text_color("#ffffff").child(`#${n}`);
   }
 
@@ -244,7 +244,7 @@ export default class Shot extends View {
     const top = z(m.y) < 24 ? 16 : -20;
     return [
       ...(m.region ? [this.outline(m.region, c, `region-${m.n}`)] : []),
-      div().absolute().left(z(m.x) - 7).top(z(m.y) - 7).w(14).h(14).rounded(7).border(2).border_color("#ffffff").bg(c)
+      div().absolute().left(z(m.x) - 7).top(z(m.y) - 7).w(14).h(14).rounded(7).border(2).border_color(c).bg(`${c}33`)
         .child(this.badge(m.n, left, top)),
     ];
   }
