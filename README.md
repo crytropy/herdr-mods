@@ -53,6 +53,7 @@ powershell -ExecutionPolicy Bypass -File mods\c-pr\install.ps1
 - 最多三個 repo，用面板頂部的分頁切換。
 - 最新建立的 issue 排在最上面。
 - 每列只顯示編號和標題。點一下用瀏覽器開啟。
+- issue 在 GitHub 上設了「Blocked by」，而且擋住它的 issue 還沒關，標題下面會用紅字顯示「被 #38、#41 擋住」。
 - 預設顯示 10 筆。按底部的 `−`／`+` 一次加減 5 筆，範圍 5～50。
 
 herdr 重開後，面板會記得上次選的 repo 和筆數。
