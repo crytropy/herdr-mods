@@ -82,3 +82,39 @@ powershell -ExecutionPolicy Bypass -File mods\c-issue\install.ps1
    ```
 
 改 `config.json` 不用重開 herdr，下一次更新就會套用。
+
+## c-shot：標記位置
+
+終端機沒辦法貼圖。c-shot 讓你在 herdr 畫面上指出位置，再把位置交給 Claude。
+
+按 `Ctrl+Alt+P`，畫面上會蓋一層透明圖層：
+
+- **滑鼠指向**：游標旁顯示座標，以及那裡是哪個區塊或 mod。
+- **點一下**：標一個點。
+- **拖曳**：框一個範圍。可以標好幾個，每個有編號（`#1`、`#2`…）。
+- `Backspace`：復原上一個。`Enter`：送出。`Esc`：取消。
+
+送出後，c-shot 會：
+
+1. 截下整個 herdr 視窗，上面畫著你的標記。
+2. 在 `~/.config/herdr-app/c-shot/` 存一張 `shot-<時間>.png` 和一份同名的 `.json`。`.json` 有每個標記的座標、落在哪個 mod、layout 區塊和 pane 清單。
+3. 把一行文字放進剪貼簿，例如 `看 c-shot 標記 C:\...\shot-20261127-153012.json（#1 c-pr mod（gh-prs））：`。
+
+把這行貼給 Claude，後面接你要改什麼。Claude 會讀 `.json` 和截圖。
+
+截圖不會自動刪除。不要的話，直接刪掉 `c-shot` 資料夾裡的檔案。
+
+### 安裝（Windows）
+
+```powershell
+powershell -ExecutionPolicy Bypass -File mods\c-shot\install.ps1
+```
+
+安裝程式會把 `Ctrl+Alt+P` 加進 `keys.json`。這個鍵已經有別的用途的話，它不會改，只會提醒你。
+
+### 手動安裝（macOS、Linux 或不想跑腳本）
+
+1. 把 `mods/c-shot/` 裡的 `main.js`、`mod.json`、`jsconfig.json` 複製到 `~/.config/herdr-app/mods/c-shot/`。
+2. 在 `~/.config/herdr-app/keys.json` 的 `global` 加上 `"ctrl-alt-p": "mod.open:c-shot"`。
+
+不設快捷鍵也可以，從指令面板找「標記位置（c-shot）」。
