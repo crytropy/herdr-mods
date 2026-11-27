@@ -60,6 +60,65 @@ herdr 重開後，面板會記得上次選的 repo 和筆數。
 
 截圖不會自動刪除。不要的話，直接刪掉 `c-shot` 資料夾裡的檔案。
 
+## 檔案總管右鍵開啟（Windows）
+
+這不是 mod。它在檔案總管的右鍵選單加一個「在 herdr 開啟」：herdr 會用那個資料夾開一個新 space，然後跳到最前面。
+
+1. 建一個 `herdr-open.vbs`，放在哪裡都可以。下面用 `C:\herdr-open\herdr-open.vbs` 當例子：
+
+   ```vb
+   Set sh = CreateObject("WScript.Shell")
+   exe = sh.ExpandEnvironmentStrings("%LOCALAPPDATA%\Programs\herdr-app\herdr-app.exe")
+   folder = WScript.Arguments(0)
+   If Right(folder, 1) = "\" Then folder = folder & "."
+
+   ' herdr 沒開就先開，最多等 15 秒讓視窗出來
+   Set wmi = GetObject("winmgmts:\\.\root\cimv2")
+   If wmi.ExecQuery("SELECT * FROM Win32_Process WHERE Name='herdr-app.exe'").Count = 0 Then
+     sh.Run """" & exe & """", 1, False
+     For i = 1 To 75
+       WScript.Sleep 200
+       If sh.AppActivate("Herdr") Then Exit For
+     Next
+     WScript.Sleep 1500
+   End If
+
+   sh.Run """" & exe & """ do space.new --folder """ & folder & """", 0, True
+   WScript.Sleep 300
+   sh.AppActivate "Herdr"
+   ```
+
+   - 用 VBS 是因為它跑的時候不會跳出黑色視窗。
+   - 只用 `herdr-app do space.new` 的話，space 會開，但 herdr 視窗不會跳到前面。`AppActivate` 就是用來把它拉到前面。
+   - 在 `D:\` 這種磁碟根目錄按右鍵時，路徑結尾的 `\` 會把引號弄壞，所以補一個 `.`。
+   - herdr 視窗關著時，`herdr-app do` 沒有視窗可以傳指令，所以腳本會先打開 herdr。視窗出來後再等 1.5 秒，讓 herdr 準備好。
+
+2. 在 PowerShell 跑下面四行，加進右鍵選單。路徑換成你放 `herdr-open.vbs` 的位置。`--%` 讓 PowerShell 不要改動後面的引號：
+
+   ```powershell
+   reg --% add "HKCU\Software\Classes\Directory\Background\shell\herdr" /ve /d "在 herdr 開啟" /f
+   reg --% add "HKCU\Software\Classes\Directory\Background\shell\herdr\command" /ve /d "wscript.exe \"C:\herdr-open\herdr-open.vbs\" \"%V\"" /f
+   reg --% add "HKCU\Software\Classes\Directory\shell\herdr" /ve /d "在 herdr 開啟" /f
+   reg --% add "HKCU\Software\Classes\Directory\shell\herdr\command" /ve /d "wscript.exe \"C:\herdr-open\herdr-open.vbs\" \"%V\"" /f
+   ```
+
+   - `Directory\Background`：在資料夾裡面的空白處按右鍵。
+   - `Directory`：直接在資料夾上按右鍵。
+
+用法：在檔案總管按右鍵，選「顯示其他選項」（或按 `Shift+F10`），再選「在 herdr 開啟」。
+
+- herdr 沒開的話，會先自動打開。
+- herdr 縮到最小的時候，視窗不會自己彈回來，要點工作列叫出來。
+
+移除：
+
+```powershell
+reg delete "HKCU\Software\Classes\Directory\Background\shell\herdr" /f
+reg delete "HKCU\Software\Classes\Directory\shell\herdr" /f
+```
+
+再刪掉 `herdr-open.vbs`。
+
 ## 安裝
 
 先下載這個 repo：
