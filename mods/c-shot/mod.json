@@ -1,0 +1,8 @@
+{
+  "place": "none",
+  "title": "標記位置",
+  "overlay": { "kind": "window", "at": { "x": 0, "y": 0 }, "width": 1, "height": 1, "frame": "none" },
+  "palette": [
+    { "title": "標記位置（c-shot）", "command": "mod.open", "args": { "name": "c-shot" }, "words": "shot mark screenshot 截圖 標記 位置" }
+  ]
+}
