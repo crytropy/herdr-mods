@@ -98,6 +98,8 @@ powershell -ExecutionPolicy Bypass -File mods\c-pr\install.ps1
 
 改 `config.json` 不用重開 herdr，下一次更新就會套用。
 
+要換面板字型，在 `config.json` 加 `font`，填電腦裡裝的字型名稱，例如 `{ "scope": "", "font": "Sarasa UI TC" }`。不填就用 herdr 的預設字型。再跑 `install.ps1` 會保留這個設定。
+
 ### c-issue
 
 ```powershell
@@ -114,8 +116,10 @@ powershell -ExecutionPolicy Bypass -File mods\c-issue\install.ps1
 2. 在同一個資料夾建 `config.json`：
 
    ```json
-   { "repos": ["owner/repo-a", "owner/repo-b", "owner/repo-c"] }
+   { "repos": ["owner/repo-a", "owner/repo-b", "owner/repo-c"], "font": "Sarasa UI TC" }
    ```
+
+   `font` 可以不填，不填就用 herdr 的預設字型。再跑 `install.ps1` 會保留這個設定。
 
 改 `config.json` 不用重開 herdr，下一次更新就會套用。
 
