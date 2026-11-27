@@ -92,15 +92,17 @@ powershell -ExecutionPolicy Bypass -File mods\c-issue\install.ps1
 - **滑鼠指向**：游標旁顯示座標，以及那裡是哪個區塊或 mod。那個區塊會用虛線框起來。
 - **點一下**：標一個點，同時自動用虛線框住它所在的整個區塊。
 - **拖曳**：框一個範圍。可以標好幾個，每個有編號（`#1`、`#2`…）。
-- `Backspace`：復原上一個。`Enter`：送出。`Esc`：取消。
+- `Backspace`：復原上一個。`Esc`：取消。
 
-送出後，c-shot 會：
+按 `Ctrl+C` 複製，然後標記畫面會關掉。複製什麼要看你有沒有標記：
 
-1. 截下整個 herdr 視窗，上面畫著你的標記。
-2. 在 `~/.config/herdr-app/c-shot/` 存一張 `shot-<時間>.png` 和一份同名的 `.json`。`.json` 有每個標記的座標、落在哪個 mod、layout 區塊和 pane 清單。
-3. 把一行文字放進剪貼簿，例如 `看 c-shot 標記 C:\...\shot-20261127-153012.json（#1 c-pr mod（gh-prs））：`。
+- **沒有標記**：只複製滑鼠指向的區塊名稱和位置，不截圖。例如 `c-shot 區塊：agents mod（agents）｜root › sidebar › sidebar-lists › agents｜位置 0,511，259×461（layout main-pr）`。
+- **有標記**：只複製你標的點和框，不管滑鼠當下指向哪裡。c-shot 會：
+  1. 截下整個 herdr 視窗，上面畫著你的標記。
+  2. 在 `~/.config/herdr-app/c-shot/` 存一張 `shot-<時間>.png` 和一份同名的 `.json`。`.json` 有每個標記的座標、落在哪個 mod、layout 區塊和 pane 清單。
+  3. 把一行文字放進剪貼簿，例如 `看 c-shot 標記 C:\...\shot-20261127-153012.json（#1 c-pr mod（gh-prs））：`。
 
-把這行貼給 Claude，後面接你要改什麼。Claude 會讀 `.json` 和截圖。
+把複製的內容貼給 Claude，後面接你要改什麼。有截圖時，Claude 會讀 `.json` 和截圖。
 
 截圖不會自動刪除。不要的話，直接刪掉 `c-shot` 資料夾裡的檔案。
 
