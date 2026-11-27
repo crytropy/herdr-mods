@@ -8,7 +8,7 @@ const COLORS = ["#ff3b30", "#ff9500", "#34c759", "#0a84ff", "#af52de", "#ff2d55"
 const FOR_CLAUDE = [
   "c-shot 的標記結果。image 是 herdr 視窗截圖，上面畫著編號標記。",
   "座標是視窗的 logical px，原點在左上角。截圖是實體像素：image 寬 ÷ window.width 就是倍率。",
-  "marks[].at 是標記中心落在哪個 layout 區塊。regions 是依 layout 推算的區塊位置，可能有幾 px 誤差，以截圖為準。",
+  "marks[].at 是標記中心落在哪個 layout 區塊。點的標記另有 region：那個區塊的範圍，截圖上用虛線框畫出。regions 是依 layout 推算的區塊位置，可能有幾 px 誤差，以截圖為準。",
   "要改 mod 的話，mod 原始碼在 ~/.config/herdr-app/mods/<mod>/ 或這個 repo 的 mods/<mod>/。",
 ];
 
@@ -155,8 +155,10 @@ export default class Shot extends View {
       : { n, kind: "point", x: Math.round(d.x0), y: Math.round(d.y0) };
     const cx0 = box ? x + w / 2 : mark.x;
     const cy0 = box ? y + h / 2 : mark.y;
-    mark.at = label(this.hitAt(cx0, cy0));
-    mark.path = this.hitAt(cx0, cy0)?.path ?? null;
+    const r = this.hitAt(cx0, cy0);
+    mark.at = label(r);
+    mark.path = r?.path ?? null;
+    if (!box && r) mark.region = { x: r.x, y: r.y, w: r.w, h: r.h };
     this.marks.push(mark);
     cx.notify();
   }
@@ -214,7 +216,7 @@ export default class Shot extends View {
   }
 
   badge(n, x, y) {
-    return div().absolute().left(x).top(y).px(5).rounded(4).bg(color(n))
+    return div().absolute().left(x).top(y).px(5).rounded(4).bg(`${color(n)}cc`)
       .text_size(11).font_semibold().text_color("#ffffff").child(`#${n}`);
   }
 
@@ -223,15 +225,28 @@ export default class Shot extends View {
     return v / (Number(settings()?.zoom) || 1);
   }
 
-  markEl(m) {
+  outline(r, c, id) {
+    const z = (v) => this.z(v);
+    return div().id(id).absolute().left(z(r.x - this.origin.x)).top(z(r.y - this.origin.y)).w(z(r.w)).h(z(r.h))
+      .border(2).border_dashed().border_color(c).bg(`${c}10`);
+  }
+
+  // Badges sit outside what they mark so the marked thing stays readable.
+  markEls(m) {
     const c = color(m.n);
     const z = (v) => this.z(v);
     if (m.kind === "box") {
-      return div().absolute().left(z(m.x)).top(z(m.y)).w(z(m.w)).h(z(m.h)).border(2).border_color(c).bg(`${c}22`)
-        .child(this.badge(m.n, -2, -20));
+      const top = z(m.y) < 22 ? z(m.h) + 2 : -20;
+      return [div().absolute().left(z(m.x)).top(z(m.y)).w(z(m.w)).h(z(m.h)).border(2).border_color(c).bg(`${c}22`)
+        .child(this.badge(m.n, -2, top))];
     }
-    return div().absolute().left(z(m.x) - 7).top(z(m.y) - 7).w(14).h(14).rounded(7).border(2).border_color("#ffffff").bg(c)
-      .child(this.badge(m.n, 12, -18));
+    const left = z(m.x) < 40 ? 16 : -30;
+    const top = z(m.y) < 24 ? 16 : -20;
+    return [
+      ...(m.region ? [this.outline(m.region, c, `region-${m.n}`)] : []),
+      div().absolute().left(z(m.x) - 7).top(z(m.y) - 7).w(14).h(14).rounded(7).border(2).border_color("#ffffff").bg(c)
+        .child(this.badge(m.n, left, top)),
+    ];
   }
 
   tip(t) {
@@ -265,7 +280,11 @@ export default class Shot extends View {
       .when(live && Boolean(p), (el) => el
         .child(div().absolute().left(0).top(z(p.y)).w_full().h(1).bg(`${t.accent}66`))
         .child(div().absolute().left(z(p.x)).top(0).h_full().w(1).bg(`${t.accent}66`)))
-      .children(this.marks.map((m) => this.markEl(m)))
+      .when(live && Boolean(p) && !d, (el) => {
+        const r = this.hitAt(p.x, p.y);
+        return r ? el.child(this.outline(r, t.accent, "hover")) : el;
+      })
+      .children(this.marks.flatMap((m) => this.markEls(m)))
       .when(Boolean(d), (el) => el.child(div().absolute()
         .left(z(Math.min(d.x0, d.x1))).top(z(Math.min(d.y0, d.y1)))
         .w(z(Math.abs(d.x1 - d.x0))).h(z(Math.abs(d.y1 - d.y0)))
