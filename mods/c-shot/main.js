@@ -90,6 +90,7 @@ export default class Shot extends View {
     this.size = { width: 0, height: 0 };
     this.list = [];
     this.pointer = null;
+    this.origin = { x: 0, y: 0 };
     this.drag = null;
     this.marks = [];
     this.busy = false;
@@ -109,18 +110,29 @@ export default class Shot extends View {
     cx.notify();
   }
 
+  local(e) {
+    if (e.bounds) this.origin = { x: e.bounds.x, y: e.bounds.y };
+    if (e.local_position) return { x: e.local_position.x, y: e.local_position.y };
+    return { x: e.position.x - this.origin.x, y: e.position.y - this.origin.y };
+  }
+
+  hitAt(x, y) {
+    return hit(this.list, x + this.origin.x, y + this.origin.y);
+  }
+
   down(e, cx) {
     cx.stop_propagation();
     if (this.busy) return;
-    this.drag = { x0: e.position.x, y0: e.position.y, x1: e.position.x, y1: e.position.y };
+    const p = this.local(e);
+    this.drag = { x0: p.x, y0: p.y, x1: p.x, y1: p.y };
     cx.notify();
   }
 
   move(e, cx) {
-    this.pointer = { x: e.position.x, y: e.position.y };
+    this.pointer = this.local(e);
     if (this.drag) {
       if (e.pressed_button !== "left") this.drag = null;
-      else Object.assign(this.drag, { x1: e.position.x, y1: e.position.y });
+      else Object.assign(this.drag, { x1: this.pointer.x, y1: this.pointer.y });
     }
     cx.notify();
   }
@@ -129,8 +141,9 @@ export default class Shot extends View {
     const d = this.drag;
     this.drag = null;
     if (!d) return;
-    d.x1 = e.position.x;
-    d.y1 = e.position.y;
+    const p = this.local(e);
+    d.x1 = p.x;
+    d.y1 = p.y;
     const n = this.marks.length + 1;
     const x = Math.round(Math.min(d.x0, d.x1));
     const y = Math.round(Math.min(d.y0, d.y1));
@@ -142,8 +155,8 @@ export default class Shot extends View {
       : { n, kind: "point", x: Math.round(d.x0), y: Math.round(d.y0) };
     const cx0 = box ? x + w / 2 : mark.x;
     const cy0 = box ? y + h / 2 : mark.y;
-    mark.at = label(hit(this.list, cx0, cy0));
-    mark.path = hit(this.list, cx0, cy0)?.path ?? null;
+    mark.at = label(this.hitAt(cx0, cy0));
+    mark.path = this.hitAt(cx0, cy0)?.path ?? null;
     this.marks.push(mark);
     cx.notify();
   }
@@ -183,7 +196,7 @@ export default class Shot extends View {
           window: { width: Math.round(this.size.width), height: Math.round(this.size.height) },
           zoom: Number(settings()?.zoom) || 1,
           layout: shared("layout") ?? null,
-          marks: this.marks,
+          marks: this.marks.map((m) => ({ ...m, x: Math.round(m.x + this.origin.x), y: Math.round(m.y + this.origin.y) })),
           focused: focused(),
           panes: tabPanes(),
           regions: this.list,
@@ -205,24 +218,32 @@ export default class Shot extends View {
       .text_size(11).font_semibold().text_color("#ffffff").child(`#${n}`);
   }
 
+  // Pointer events are in window px; element lengths get scaled by the app zoom.
+  z(v) {
+    return v / (Number(settings()?.zoom) || 1);
+  }
+
   markEl(m) {
     const c = color(m.n);
+    const z = (v) => this.z(v);
     if (m.kind === "box") {
-      return div().absolute().left(m.x).top(m.y).w(m.w).h(m.h).border(2).border_color(c).bg(`${c}22`)
+      return div().absolute().left(z(m.x)).top(z(m.y)).w(z(m.w)).h(z(m.h)).border(2).border_color(c).bg(`${c}22`)
         .child(this.badge(m.n, -2, -20));
     }
-    return div().absolute().left(m.x - 7).top(m.y - 7).w(14).h(14).rounded(7).border(2).border_color("#ffffff").bg(c)
+    return div().absolute().left(z(m.x) - 7).top(z(m.y) - 7).w(14).h(14).rounded(7).border(2).border_color("#ffffff").bg(c)
       .child(this.badge(m.n, 12, -18));
   }
 
   tip(t) {
     const p = this.pointer;
-    const r = hit(this.list, p.x, p.y);
-    const lines = [`${Math.round(p.x)}, ${Math.round(p.y)}`, label(r)];
+    const r = this.hitAt(p.x, p.y);
+    const lines = [`${Math.round(p.x + this.origin.x)}, ${Math.round(p.y + this.origin.y)}`, label(r)];
     if (r) lines.push(`${r.path}　${r.w}×${r.h}`);
     const right = p.x > this.size.width - 300;
     const below = p.y < this.size.height - 90;
-    return v_flex().absolute().left(right ? p.x - 290 : p.x + 16).top(below ? p.y + 18 : p.y - 76)
+    const x = this.z(p.x);
+    const y = this.z(p.y);
+    return v_flex().absolute().left(right ? x - 290 : x + 16).top(below ? y + 18 : y - 76)
       .max_w(280).px(8).py(5).gap(1).rounded(6).bg(t.popover).border(1).border_color(t.border)
       .text_size(11.5).text_color(t.foreground)
       .children(lines.map((s, i) => div().truncate().text_color(i === 0 ? t.accent : i === 2 ? t.dim : t.foreground).child(s)));
@@ -233,6 +254,7 @@ export default class Shot extends View {
     const d = this.drag;
     const p = this.pointer;
     const live = !this.busy;
+    const z = (v) => this.z(v);
     return div().id("c-shot").track_focus(this.handle).size_full().relative().cursor_crosshair()
       .bg(live ? "#00000014" : "#00000000")
       .on_size_change((size, cx) => this.resized(size, cx))
@@ -241,12 +263,12 @@ export default class Shot extends View {
       .on_mouse_move((e, cx) => this.move(e, cx))
       .on_mouse_up("left", (e, cx) => this.up(e, cx))
       .when(live && Boolean(p), (el) => el
-        .child(div().absolute().left(0).top(p.y).w_full().h(1).bg(`${t.accent}66`))
-        .child(div().absolute().left(p.x).top(0).h_full().w(1).bg(`${t.accent}66`)))
+        .child(div().absolute().left(0).top(z(p.y)).w_full().h(1).bg(`${t.accent}66`))
+        .child(div().absolute().left(z(p.x)).top(0).h_full().w(1).bg(`${t.accent}66`)))
       .children(this.marks.map((m) => this.markEl(m)))
       .when(Boolean(d), (el) => el.child(div().absolute()
-        .left(Math.min(d.x0, d.x1)).top(Math.min(d.y0, d.y1))
-        .w(Math.abs(d.x1 - d.x0)).h(Math.abs(d.y1 - d.y0))
+        .left(z(Math.min(d.x0, d.x1))).top(z(Math.min(d.y0, d.y1)))
+        .w(z(Math.abs(d.x1 - d.x0))).h(z(Math.abs(d.y1 - d.y0)))
         .border(2).border_color(color(this.marks.length + 1))))
       .when(live && Boolean(p), (el) => el.child(this.tip(t)))
       .when(live, (el) => el.child(h_flex().absolute().bottom(16).left(0).w_full().justify_center()
