@@ -35,7 +35,10 @@ const QUERY = `query($owner: String!, $name: String!, $n: Int!) {
   repository(owner: $owner, name: $name) {
     issues(first: $n, states: OPEN, orderBy: { field: CREATED_AT, direction: DESC }) {
       totalCount
-      nodes { number title url }
+      nodes {
+        number title url
+        blockedBy(first: 10) { nodes { number state repository { nameWithOwner } } }
+      }
     }
   }
 }`;
@@ -147,12 +150,22 @@ export default class GhIssues extends View {
       }));
   }
 
+  blockers(issue) {
+    return (issue.blockedBy?.nodes ?? [])
+      .filter((b) => b?.state === "OPEN")
+      .map((b) => b.repository?.nameWithOwner === this.repo ? `#${b.number}` : `${b.repository?.nameWithOwner}#${b.number}`);
+  }
+
   row(issue, t) {
-    return h_flex().id(`issue-${issue.url}`).px(12).py(5).gap(6).cursor_pointer()
+    const blockers = this.blockers(issue);
+    return v_flex().id(`issue-${issue.url}`).px(12).py(5).gap(2).cursor_pointer()
       .hover((s) => s.bg(t.hover))
       .on_click(() => openUrl(issue.url))
-      .child(div().flex_none().text_size(11.5).text_color(t.dim).child(`#${issue.number}`))
-      .child(div().flex_1().min_w(0).text_size(12.5).text_color(t.foreground).truncate().child(issue.title));
+      .child(h_flex().gap(6)
+        .child(div().flex_none().text_size(11.5).text_color(t.dim).child(`#${issue.number}`))
+        .child(div().flex_1().min_w(0).text_size(12.5).text_color(t.foreground).truncate().child(issue.title)))
+      .when(blockers.length > 0, (el) => el.child(
+        div().text_size(11).text_color(t.ansi1).truncate().child(`被 ${blockers.join("、")} 擋住`)));
   }
 
   render(cx) {
