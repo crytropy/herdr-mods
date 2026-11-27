@@ -1,0 +1,8 @@
+{
+  "place": "right",
+  "size": 360,
+  "title": "GitHub PR",
+  "palette": [
+    { "title": "GitHub PR 面板", "command": "pane.split", "args": { "direction": "right", "mod": "c-pr" }, "words": "github pr pull request review" }
+  ]
+}
