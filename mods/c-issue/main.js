@@ -10,17 +10,20 @@ const MAX = 50;
 const KEY_REPO = "c-issue.repo";
 const KEY_COUNT = "c-issue.count";
 
-async function repos() {
+async function config() {
   const text = await readTextFile(`${appHome()}/${CONFIG}`).catch(() => null);
-  if (!text) return [];
-  let list;
+  if (!text) return { repos: [], font: null };
+  let c;
   try {
-    list = JSON.parse(text.replace(/^﻿/, "")).repos;
+    c = JSON.parse(text.replace(/^﻿/, "")) ?? {};
   } catch {
     throw new Error(`${CONFIG} 不是正確的 JSON`);
   }
-  if (!Array.isArray(list)) return [];
-  return list.map((r) => String(r ?? "").trim()).filter((r) => /^[^/\s]+\/[^/\s]+$/.test(r)).slice(0, 3);
+  const list = Array.isArray(c.repos) ? c.repos : [];
+  return {
+    repos: list.map((r) => String(r ?? "").trim()).filter((r) => /^[^/\s]+\/[^/\s]+$/.test(r)).slice(0, 3),
+    font: String(c.font ?? "").trim() || null,
+  };
 }
 
 function load(key) {
@@ -80,7 +83,9 @@ export default class GhIssues extends View {
     cx.notify();
     cx.spawn(async (cx) => {
       try {
-        this.repos = await repos();
+        const c = await config();
+        this.repos = c.repos;
+        this.font = c.font;
         if (!this.repos.includes(this.repo)) this.repo = this.repos[0] ?? null;
         if (!this.repo) {
           this.issues = [];
@@ -173,6 +178,7 @@ export default class GhIssues extends View {
     const time = this.updated ? this.updated.toTimeString().slice(0, 5) : "—";
     const empty = !this.loading && !this.error && this.issues.length === 0;
     return v_flex().id("root").size_full().bg(t.chrome).text_color(t.foreground)
+      .when(this.font, (el) => el.font_family(this.font))
       .child(h_flex().px(12).h(32).items_center().gap(8).border_b(1).border_color(t.border)
         .child(div().font_semibold().text_size(12.5).child("GitHub Issue"))
         .child(div().flex_1())

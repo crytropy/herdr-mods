@@ -5,11 +5,12 @@ import { exec, theme, window, checking, appHome, readTextFile } from "herdr";
 const EVERY_MS = 30 * 1000;
 const CONFIG = "mods/c-pr/config.json";
 
-async function scope() {
+async function config() {
   const text = await readTextFile(`${appHome()}/${CONFIG}`).catch(() => null);
-  if (!text) return "";
+  if (!text) return { scope: "", font: null };
   try {
-    return String(JSON.parse(text.replace(/^﻿/, "")).scope ?? "").trim();
+    const c = JSON.parse(text.replace(/^﻿/, "")) ?? {};
+    return { scope: String(c.scope ?? "").trim(), font: String(c.font ?? "").trim() || null };
   } catch {
     throw new Error(`${CONFIG} 不是正確的 JSON`);
   }
@@ -100,7 +101,9 @@ export default class GhPrs extends View {
     cx.notify();
     cx.spawn(async (cx) => {
       try {
-        const base = `is:pr is:open archived:false ${await scope()}`.trim();
+        const c = await config();
+        this.font = c.font;
+        const base = `is:pr is:open archived:false ${c.scope}`.trim();
         const r = await exec("gh", ["api", "graphql",
           "-f", `query=${QUERY}`,
           "-f", `mine=${base} author:@me`,
@@ -148,6 +151,7 @@ export default class GhPrs extends View {
     const t = theme();
     const time = this.updated ? this.updated.toTimeString().slice(0, 5) : "—";
     return v_flex().id("root").size_full().bg(t.chrome).text_color(t.foreground)
+      .when(this.font, (el) => el.font_family(this.font))
       .child(h_flex().px(12).h(32).items_center().gap(8).border_b(1).border_color(t.border)
         .child(div().font_semibold().text_size(12.5).child("GitHub PR"))
         .child(div().flex_1())

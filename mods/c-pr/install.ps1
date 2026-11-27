@@ -12,8 +12,13 @@ Write-Host "安裝到：$target"
 Write-Host ''
 
 $current = $null
+$font = $null
 if (Test-Path $configPath) {
-    try { $current = (Get-Content -Raw -Encoding UTF8 $configPath | ConvertFrom-Json).scope } catch { $current = $null }
+    try {
+        $old = Get-Content -Raw -Encoding UTF8 $configPath | ConvertFrom-Json
+        $current = $old.scope
+        $font = $old.font
+    } catch { $current = $null }
 }
 
 Write-Host '面板要顯示哪些 PR？'
@@ -49,7 +54,9 @@ foreach ($file in 'main.js', 'mod.json', 'jsconfig.json') {
     Copy-Item -Force (Join-Path $PSScriptRoot $file) (Join-Path $target $file)
 }
 
-$json = ConvertTo-Json @{ scope = $scope }
+$config = @{ scope = $scope }
+if ($font) { $config.font = $font }
+$json = ConvertTo-Json $config
 [IO.File]::WriteAllText($configPath, $json, (New-Object Text.UTF8Encoding $false))
 
 Write-Host ''

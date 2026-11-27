@@ -12,8 +12,13 @@ Write-Host "安裝到：$target"
 Write-Host ''
 
 $current = @()
+$font = $null
 if (Test-Path $configPath) {
-    try { $current = @((Get-Content -Raw -Encoding UTF8 $configPath | ConvertFrom-Json).repos) } catch { $current = @() }
+    try {
+        $old = Get-Content -Raw -Encoding UTF8 $configPath | ConvertFrom-Json
+        $current = @($old.repos)
+        $font = $old.font
+    } catch { $current = @() }
 }
 
 Write-Host '請輸入最多三個 repo，格式 owner/name，例如 cli/cli。'
@@ -42,7 +47,9 @@ foreach ($file in 'main.js', 'mod.json', 'jsconfig.json') {
     Copy-Item -Force (Join-Path $PSScriptRoot $file) (Join-Path $target $file)
 }
 
-$json = ConvertTo-Json @{ repos = $repos }
+$config = @{ repos = $repos }
+if ($font) { $config.font = $font }
+$json = ConvertTo-Json $config
 [IO.File]::WriteAllText($configPath, $json, (New-Object Text.UTF8Encoding $false))
 
 Write-Host ''
