@@ -1,0 +1,8 @@
+{
+  "place": "right",
+  "size": 360,
+  "title": "GitHub Issue",
+  "palette": [
+    { "title": "GitHub Issue 面板", "command": "pane.split", "args": { "direction": "right", "mod": "c-issue" }, "words": "github issue repo" }
+  ]
+}
