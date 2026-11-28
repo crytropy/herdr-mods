@@ -9,6 +9,8 @@ const MIN = 5;
 const MAX = 50;
 const KEY_REPO = "c-issue.repo";
 const KEY_COUNT = "c-issue.count";
+const KEY_FOLDED = "c-issue.folded";
+const INDENT = 14;
 
 async function config() {
   const text = await readTextFile(`${appHome()}/${CONFIG}`).catch(() => null);
@@ -41,10 +43,53 @@ const QUERY = `query($owner: String!, $name: String!, $n: Int!) {
       nodes {
         number title url
         blockedBy(first: 10) { nodes { number state repository { nameWithOwner } } }
+        subIssuesSummary { total completed }
+        parent {
+          number title url state
+          repository { nameWithOwner }
+          subIssuesSummary { total completed }
+        }
       }
     }
   }
 }`;
+
+// 把子票掛到母票下面。母票不在清單裡（已關、在別的 repo、或超過筆數）時，
+// 用子票帶回來的母票資料補一列。
+// 一整組排在組裡最新那張票的位置，所以新開的子票會把整組帶到上面。
+function tree(issues) {
+  const nodes = new Map(issues.map((issue) => [issue.url, { issue, kids: [], above: null, outside: false }]));
+  for (const issue of issues) {
+    const parent = issue.parent;
+    if (!parent?.url) continue;
+    let above = nodes.get(parent.url);
+    if (!above) {
+      above = { issue: parent, kids: [], above: null, outside: true };
+      nodes.set(parent.url, above);
+    }
+    const node = nodes.get(issue.url);
+    node.above = above;
+    above.kids.push(node);
+  }
+  // 子票照開票順序排：先開的在上面。同一個 repo 裡，編號小的就是先開的。
+  for (const node of nodes.values()) node.kids.sort((a, b) => a.issue.number - b.issue.number);
+  const top = new Set();
+  for (const issue of issues) {
+    let node = nodes.get(issue.url);
+    while (node.above) node = node.above;
+    top.add(node);
+  }
+  return [...top];
+}
+
+function loadFolded() {
+  try {
+    const list = JSON.parse(load(KEY_FOLDED) ?? "[]");
+    return new Set(Array.isArray(list) ? list : []);
+  } catch {
+    return new Set();
+  }
+}
 
 function openUrl(url) {
   const p = window()?.platform;
@@ -60,6 +105,7 @@ export default class GhIssues extends View {
     const n = Number(load(KEY_COUNT));
     this.count = Number.isInteger(n) && n >= MIN && n <= MAX ? n : 10;
     this.issues = [];
+    this.folded = loadFolded();
     this.total = 0;
     this.error = null;
     this.loading = false;
@@ -161,16 +207,46 @@ export default class GhIssues extends View {
       .map((b) => b.repository?.nameWithOwner === this.repo ? `#${b.number}` : `${b.repository?.nameWithOwner}#${b.number}`);
   }
 
-  row(issue, t) {
+  fold(url, cx) {
+    if (!this.folded.delete(url)) this.folded.add(url);
+    save(KEY_FOLDED, JSON.stringify([...this.folded]));
+    cx.notify();
+  }
+
+  // 一個節點和它下面沒收起來的子票，攤平成一列一列。
+  rows(node, depth, t) {
+    const open = !this.folded.has(node.issue.url);
+    return [
+      this.row(node, depth, open, t),
+      ...(open ? node.kids.flatMap((kid) => this.rows(kid, depth + 1, t)) : []),
+    ];
+  }
+
+  row(node, depth, open, t) {
+    const issue = node.issue;
     const blockers = this.blockers(issue);
-    return v_flex().id(`issue-${issue.url}`).px(12).py(5).gap(2).cursor_pointer()
+    const hasKids = node.kids.length > 0;
+    const sum = issue.subIssuesSummary;
+    const there = issue.repository?.nameWithOwner;
+    const number = node.outside && there && there !== this.repo ? `${there}#${issue.number}` : `#${issue.number}`;
+    const closed = node.outside && issue.state === "CLOSED";
+    return h_flex().id(`row-${issue.url}`).items_start().pl(2 + depth * INDENT)
       .hover((s) => s.bg(t.hover))
-      .on_click(() => openUrl(issue.url))
-      .child(h_flex().gap(6)
-        .child(div().flex_none().text_size(11.5).text_color(t.dim).child(`#${issue.number}`))
-        .child(div().flex_1().min_w(0).text_size(12.5).text_color(t.foreground).truncate().child(issue.title)))
-      .when(blockers.length > 0, (el) => el.child(
-        div().text_size(11).text_color(t.ansi1).truncate().child(`被 ${blockers.join("、")} 擋住`)));
+      .child(div().id(`fold-${issue.url}`).flex_none().w(14).py(5).text_size(11).text_color(t.muted)
+        .when(hasKids, (el) => el.cursor_pointer().hover((s) => s.text_color(t.foreground))
+          .on_click((_e, cx) => this.fold(issue.url, cx)))
+        .child(hasKids ? (open ? "▾" : "▸") : ""))
+      .child(v_flex().id(`issue-${issue.url}`).flex_1().min_w(0).pr(12).py(5).gap(2).cursor_pointer()
+        .on_click(() => openUrl(issue.url))
+        .child(h_flex().gap(6)
+          .child(div().flex_none().text_size(11.5).text_color(t.dim).child(number))
+          .child(div().flex_1().min_w(0).text_size(12.5).truncate()
+            .text_color(node.outside ? t.muted : t.foreground)
+            .child(closed ? `${issue.title}（已關）` : issue.title))
+          .when(sum?.total > 0, (el) => el.child(
+            div().flex_none().text_size(11).text_color(t.dim).child(`${sum.completed}/${sum.total}`))))
+        .when(blockers.length > 0, (el) => el.child(
+          div().text_size(11).text_color(t.ansi1).truncate().child(`被 ${blockers.join("、")} 擋住`))));
   }
 
   render(cx) {
@@ -191,7 +267,7 @@ export default class GhIssues extends View {
         div().px(12).py(6).text_size(11).text_color(t.ansi1).child(this.error)))
       .child(v_flex().id("list").flex_1().overflow_y_scrollbar().py(4)
         .when(empty, (el) => el.child(div().px(12).py(4).text_size(11.5).text_color(t.dim).child("沒有 open 的 issue")))
-        .children(this.issues.map((issue) => this.row(issue, t))))
+        .children(tree(this.issues).flatMap((node) => this.rows(node, 0, t))))
       .child(h_flex().px(12).h(32).items_center().gap(6).border_t(1).border_color(t.border)
         .child(div().text_size(11).text_color(t.muted).child(`顯示 ${this.issues.length}／${this.total} 筆（上限 ${this.count}）`))
         .child(div().flex_1())
