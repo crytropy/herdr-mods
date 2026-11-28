@@ -4,7 +4,7 @@
 
 | 名稱 | 功能 |
 |---|---|
-| [c-pr](#c-prgithub-pr-面板) | 右側面板，列出我開的 PR 和等我 review 的 PR，顯示 CI、review、能不能合併。 |
+| [c-pr](#c-prgithub-pr-面板) | 右側面板，列出我開的 PR，顯示 CI、review、能不能合併。可以點開看說明，直接合併。 |
 | [c-issue](#c-issuegithub-issue-面板) | 右側面板，列出指定 repo 的 open issue，子票排在母票下面，標出被擋住的 issue。可以拖曳排序、做顏色記號、點開看內文。 |
 | [c-shot](#c-shot標記位置) | 在 herdr 畫面上指出位置或框選範圍，複製區塊資訊或截圖，貼給 Claude。 |
 
@@ -12,12 +12,16 @@
 
 ## c-pr：GitHub PR 面板
 
-右側面板，列出兩份清單，每 30 秒更新：
+右側面板，列出自己開、還沒關的 PR，每 30 秒更新：
 
-- **我開的**：自己開、還沒關的 PR。
-- **等我 review**：別人請你 review 的 PR。
-
-每個 PR 顯示 CI、review、能不能合併。點一下用瀏覽器開啟。
+- 每個 PR 顯示 CI、review、能不能合併。
+- 點一下跳出一個框，顯示說明、留言（最多 30 則）、狀態、改了幾個檔案；框裡有「在瀏覽器開啟」，按 Esc 關掉。看不到 diff 和每一項 CI，那些要到瀏覽器看。
+- 框的左下角有「合併」鈕：
+  - GitHub 說可以合併時才能按。草稿、有衝突、檢查沒過、已經在合併佇列裡的都是灰的。
+  - 按第一次只會問「確定合併？」，再按一次才真的合併。
+  - 合併方式用那個 repo 自己的預設。不會刪分支；repo 有設自動刪的話，GitHub 自己會刪。
+  - 合併成功後框自己關掉，那個 PR 從面板消失。失敗會在框裡用紅字顯示原因。
+- 在終端機裡 Ctrl+點一個 GitHub PR 網址（`…/pull/12`），也會跳出同一個框，不開瀏覽器。這不受 `scope` 限制，任何 repo 的 PR 都點得開。`…/pull/12/files` 這種子頁照舊開瀏覽器。
 
 也可以從指令面板（command palette）找「GitHub PR 面板」打開。
 
@@ -30,6 +34,7 @@
 - 最多三個 repo，用面板頂部的分頁切換。
 - 最新建立的 issue 排在最上面。
 - 每列只顯示編號和標題。點一下跳出一個框，顯示內文和留言（最多 30 則）；框裡有「在瀏覽器開啟」，按 Esc 關掉。
+- 在終端機裡 Ctrl+點一個 GitHub issue 網址（`…/issues/3`），也會跳出同一個框，不開瀏覽器。不在面板清單裡的 repo 也點得開。
 - 按住一列上下拖，可以換順序。子票只能在自己的母票底下換。還沒排過的票（新開的）留在最上面。
 - 點每列前面的小圓點做記號，顏色輪一圈：沒有 → 紅 → 黃 → 綠 → 沒有。
 - 順序和記號只記在這台電腦，不會改到 GitHub。
@@ -155,7 +160,7 @@ powershell -ExecutionPolicy Bypass -File mods\c-pr\install.ps1
 
 **手動安裝：**
 
-1. 把 `mods/c-pr/` 裡的 `main.js`、`mod.json`、`jsconfig.json` 複製到 `~/.config/herdr-app/mods/c-pr/`。
+1. 把 `mods/c-pr/` 裡的 `main.js`、`link.js`、`mod.json`、`jsconfig.json` 複製到 `~/.config/herdr-app/mods/c-pr/`。
 2. 要限制範圍的話，在同一個資料夾建 `config.json`：
 
    ```json
@@ -189,7 +194,7 @@ powershell -ExecutionPolicy Bypass -File mods\c-issue\install.ps1
 
 **手動安裝：**
 
-1. 把 `mods/c-issue/` 裡的 `main.js`、`mod.json`、`jsconfig.json` 複製到 `~/.config/herdr-app/mods/c-issue/`。
+1. 把 `mods/c-issue/` 裡的 `main.js`、`link.js`、`mod.json`、`jsconfig.json` 複製到 `~/.config/herdr-app/mods/c-issue/`。
 2. 在同一個資料夾建 `config.json`：
 
    ```json

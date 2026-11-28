@@ -78,7 +78,7 @@ function Use-OwnLayout {
 Use-OwnLayout
 
 New-Item -ItemType Directory -Force $target | Out-Null
-foreach ($file in 'main.js', 'mod.json', 'jsconfig.json') {
+foreach ($file in 'main.js', 'link.js', 'mod.json', 'jsconfig.json') {
     Copy-Item -Force (Join-Path $PSScriptRoot $file) (Join-Path $target $file)
 }
 
