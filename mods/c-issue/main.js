@@ -1,6 +1,6 @@
 import { View, div } from "gpui-kit";
-import { v_flex, h_flex } from "gpui-base";
-import { exec, theme, window, checking, appHome, readTextFile } from "herdr";
+import { v_flex, h_flex, TextView } from "gpui-base";
+import { exec, theme, window, checking, appHome, readTextFile, props, openOverlay, closeOverlay } from "herdr";
 
 const EVERY_MS = 30 * 1000;
 const CONFIG = "mods/c-issue/config.json";
@@ -118,6 +118,35 @@ function loadObject(key) {
   }
 }
 
+// 跳框裡看一張票用的：內文和留言。
+const DETAIL = `query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) {
+    issue(number: $number) {
+      title body state createdAt
+      author { login }
+      labels(first: 10) { nodes { name } }
+      assignees(first: 5) { nodes { login } }
+      comments(first: 30) { totalCount nodes { body createdAt author { login } } }
+    }
+  }
+}`;
+
+function day(iso) {
+  return String(iso ?? "").slice(0, 10);
+}
+
+// 內文和留言接成一份 Markdown，留言之間用橫線隔開。
+function page(issue) {
+  const parts = [issue.body?.trim() || "（沒有內文）"];
+  const comments = issue.comments?.nodes ?? [];
+  for (const c of comments) {
+    parts.push(`---\n\n**${c?.author?.login ?? "ghost"}** · ${day(c?.createdAt)}\n\n${c?.body ?? ""}`);
+  }
+  const more = (issue.comments?.totalCount ?? 0) - comments.length;
+  if (more > 0) parts.push(`---\n\n還有 ${more} 則留言，請到瀏覽器看。`);
+  return parts.join("\n\n");
+}
+
 function loadFolded() {
   try {
     const list = JSON.parse(load(KEY_FOLDED) ?? "[]");
@@ -136,6 +165,15 @@ function openUrl(url) {
 
 export default class GhIssues extends View {
   init(_props, cx) {
+    // 同一個 mod 有兩種樣子：平常是面板；被自己用跳框打開時（props 帶著一張票），只顯示那張票。
+    this.view = props()?.issue ?? null;
+    if (this.view) {
+      this.detail = null;
+      this.error = null;
+      this.font = null;
+      if (!checking()) this.read(cx);
+      return;
+    }
     this.repos = [];
     this.repo = load(KEY_REPO);
     const n = Number(load(KEY_COUNT));
@@ -201,6 +239,39 @@ export default class GhIssues extends View {
       this.loading = false;
       cx.notify();
       if (this.again) this.refresh(cx);
+    });
+  }
+
+  show(issue) {
+    openOverlay({
+      mod: "c-issue",
+      kind: "dialog",
+      width: 760,
+      height: 0.8,
+      props: { issue: { url: issue.url, number: issue.number, title: issue.title } },
+    });
+  }
+
+  read(cx) {
+    cx.spawn(async (cx) => {
+      try {
+        this.font = (await config().catch(() => null))?.font ?? null;
+        const m = /github\.com\/([^/]+)\/([^/]+)\/issues\/(\d+)/.exec(this.view.url);
+        if (!m) throw new Error(`看不懂這個網址：${this.view.url}`);
+        const r = await exec("gh", ["api", "graphql",
+          "-f", `query=${DETAIL}`,
+          "-f", `owner=${m[1]}`,
+          "-f", `name=${m[2]}`,
+          "-F", `number=${m[3]}`,
+        ], { timeout: 60000 });
+        if (r.code !== 0) throw new Error(r.stderr.trim() || `gh 結束碼 ${r.code}`);
+        const issue = JSON.parse(r.stdout).data?.repository?.issue;
+        if (!issue) throw new Error("找不到這張票");
+        this.detail = issue;
+      } catch (e) {
+        this.error = String(e?.message ?? e);
+      }
+      cx.notify();
     });
   }
 
@@ -370,7 +441,7 @@ export default class GhIssues extends View {
           .when(Boolean(mark), (el) => el.bg(t[mark]))
           .when(!mark, (el) => el.border(1).border_color(t.dim))))
       .child(v_flex().id(`issue-${issue.url}`).flex_1().min_w(0).pr(12).py(5).gap(2).cursor_pointer()
-        .on_click(() => { if (!this.skipClick) openUrl(issue.url); })
+        .on_click(() => { if (!this.skipClick) this.show(issue); })
         .child(h_flex().gap(6)
           .child(div().flex_none().text_size(11.5).text_color(t.dim).child(number))
           .child(div().flex_1().min_w(0).text_size(12.5).truncate()
@@ -382,8 +453,34 @@ export default class GhIssues extends View {
           div().text_size(11).text_color(t.ansi1).truncate().child(`被 ${blockers.join("、")} 擋住`))));
   }
 
+  card(t) {
+    const v = this.view;
+    const d = this.detail;
+    const close = () => closeOverlay(props()?.overlay);
+    const names = (list) => (list?.nodes ?? []).map((n) => n?.name ?? n?.login).filter(Boolean).join("、");
+    const meta = d ? [
+      d.state === "CLOSED" ? "已關" : "開著",
+      `${d.author?.login ?? "ghost"} 開於 ${day(d.createdAt)}`,
+      names(d.labels) && `標籤：${names(d.labels)}`,
+      names(d.assignees) && `指派：${names(d.assignees)}`,
+    ].filter(Boolean).join("　·　") : this.error ? "" : "讀取中…";
+    return v_flex().id("card").size_full().min_h(0).p(16).gap(10).bg(t.popover).text_color(t.foreground).text_size(13)
+      .when(this.font, (el) => el.font_family(this.font))
+      .child(h_flex().items_start().gap(8)
+        .child(div().flex_none().text_size(15).text_color(t.dim).child(`#${v.number}`))
+        .child(div().flex_1().min_w(0).text_size(15).font_semibold().child(d?.title ?? v.title ?? "")))
+      .child(div().text_size(11.5).text_color(t.muted).child(meta))
+      .when(Boolean(this.error), (el) => el.child(div().text_size(12).text_color(t.ansi1).child(this.error)))
+      .child(div().id("card-body").flex_1().min_h(0).overflow_y_scrollbar().border_t(1).border_color(t.border).pt(8)
+        .when(Boolean(d), (el) => el.child(TextView.markdown("card-text", page(d)).selectable(true))))
+      .child(h_flex().justify_end().gap(8)
+        .child(this.button("browser", "在瀏覽器開啟", true, () => { openUrl(v.url); close(); }, t))
+        .child(this.button("close", "關閉", true, close, t)));
+  }
+
   render(cx) {
     const t = theme();
+    if (this.view) return this.card(t);
     const time = this.updated ? this.updated.toTimeString().slice(0, 5) : "—";
     const empty = !this.loading && !this.error && this.issues.length === 0;
     const rows = tree(this.issues, this.orders[this.repo] ?? {}).flatMap((node) => this.flat(node, 0));
