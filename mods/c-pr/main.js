@@ -31,9 +31,8 @@ const FRAGMENT = `fragment P on PullRequest {
   commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
 }`;
 
-const QUERY = `query($mine: String!, $review: String!) {
+const QUERY = `query($mine: String!) {
   mine: search(query: $mine, type: ISSUE, first: 50) { nodes { ...P } }
-  review: search(query: $review, type: ISSUE, first: 50) { nodes { ...P } }
 }
 ${FRAGMENT}`;
 
@@ -147,7 +146,6 @@ export default class GhPrs extends View {
       return;
     }
     this.mine = [];
-    this.review = [];
     this.gone = new Set();
     this.merged = shared(KEY_MERGED)?.at ?? null;
     this.loading = false;
@@ -172,12 +170,10 @@ export default class GhPrs extends View {
         const r = await exec("gh", ["api", "graphql",
           "-f", `query=${QUERY}`,
           "-f", `mine=${base} author:@me`,
-          "-f", `review=${base} review-requested:@me`,
         ], { timeout: 60000 });
         if (r.code !== 0) throw new Error(r.stderr.trim() || `gh 結束碼 ${r.code}`);
         const data = JSON.parse(r.stdout).data;
         this.mine = data.mine.nodes.filter((n) => n?.url);
-        this.review = data.review.nodes.filter((n) => n?.url);
         this.error = null;
         this.updated = new Date();
       } catch (e) {
@@ -342,7 +338,6 @@ export default class GhPrs extends View {
       .when(Boolean(this.error), (el) => el.child(
         div().px(12).py(6).text_size(11).text_color(t.ansi1).child(this.error)))
       .child(v_flex().id("list").flex_1().overflow_y_scrollbar().pb(8)
-        .child(this.section("我開的", this.mine, "mine", t))
-        .child(this.section("等我 review", this.review, "review", t)));
+        .child(this.section("我開的", this.mine, "mine", t)));
   }
 }
