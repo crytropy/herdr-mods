@@ -2,6 +2,7 @@
   "place": "right",
   "size": 360,
   "title": "GitHub PR",
+  "link_handlers": [{ "kind": "url", "pattern": "^https://github\\.com/[^/]+/[^/]+/pull/\\d+/?([?#].*)?$" }],
   "palette": [
     { "title": "GitHub PR 面板", "command": "pane.split", "args": { "direction": "right", "mod": "c-pr" }, "words": "github pr pull request review" }
   ]
