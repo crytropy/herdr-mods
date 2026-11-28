@@ -11,7 +11,10 @@ const KEY_REPO = "c-issue.repo";
 const KEY_COUNT = "c-issue.count";
 const KEY_FOLDED = "c-issue.folded";
 const KEY_ORDER = "c-issue.order";
+const KEY_MARKS = "c-issue.marks";
 const INDENT = 14;
+// 記號的顏色，照點的順序輪：紅、黃、綠，再點一次就拿掉。
+const MARKS = ["ansi1", "ansi3", "ansi2"];
 const DRAG = 4;
 
 async function config() {
@@ -103,8 +106,12 @@ function groupOf(node) {
 }
 
 function loadOrders() {
+  return loadObject(KEY_ORDER);
+}
+
+function loadObject(key) {
   try {
-    const all = JSON.parse(load(KEY_ORDER) ?? "{}");
+    const all = JSON.parse(load(key) ?? "{}");
     return all && typeof all === "object" && !Array.isArray(all) ? all : {};
   } catch {
     return {};
@@ -136,6 +143,7 @@ export default class GhIssues extends View {
     this.issues = [];
     this.folded = loadFolded();
     this.orders = loadOrders();
+    this.marks = loadObject(KEY_MARKS);
     this.drag = null;
     this.skipClick = false;
     this.total = 0;
@@ -245,6 +253,15 @@ export default class GhIssues extends View {
     cx.notify();
   }
 
+  // 記號存的是 1 起算的第幾個顏色；沒有記號就不存。
+  paint(url, cx) {
+    const next = (Number(this.marks[url]) || 0) + 1;
+    if (next > MARKS.length) delete this.marks[url];
+    else this.marks[url] = next;
+    save(KEY_MARKS, JSON.stringify(this.marks));
+    cx.notify();
+  }
+
   press(node, e) {
     this.skipClick = false;
     this.drag = { url: node.issue.url, group: groupOf(node), y: e.position.y, active: false, slot: null, urls: null };
@@ -332,6 +349,7 @@ export default class GhIssues extends View {
     const there = issue.repository?.nameWithOwner;
     const number = node.outside && there && there !== this.repo ? `${there}#${issue.number}` : `#${issue.number}`;
     const closed = node.outside && issue.state === "CLOSED";
+    const mark = MARKS[Number(this.marks[issue.url]) - 1];
     const dragging = this.drag?.active && this.drag.url === issue.url;
     return h_flex().id(`row-${issue.url}`).relative().items_start().pl(2 + depth * INDENT)
       .hover((s) => s.bg(t.hover))
@@ -346,6 +364,11 @@ export default class GhIssues extends View {
         .when(hasKids, (el) => el.cursor_pointer().hover((s) => s.text_color(t.foreground))
           .on_click((_e, cx) => { if (!this.skipClick) this.fold(issue.url, cx); }))
         .child(hasKids ? (open ? "▾" : "▸") : ""))
+      .child(div().id(`mark-${issue.url}`).flex_none().w(14).pt(10).pb(6).cursor_pointer()
+        .on_click((_e, cx) => { if (!this.skipClick) this.paint(issue.url, cx); })
+        .child(div().w(8).h(8).rounded(4)
+          .when(Boolean(mark), (el) => el.bg(t[mark]))
+          .when(!mark, (el) => el.border(1).border_color(t.dim))))
       .child(v_flex().id(`issue-${issue.url}`).flex_1().min_w(0).pr(12).py(5).gap(2).cursor_pointer()
         .on_click(() => { if (!this.skipClick) openUrl(issue.url); })
         .child(h_flex().gap(6)
